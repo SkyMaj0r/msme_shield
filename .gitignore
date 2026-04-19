@@ -1,0 +1,37 @@
+# ==========================================
+# MSME Shield - Root .gitignore
+# ==========================================
+
+# 1. Environment Variables & Secrets (CRITICAL)
+.env
+**/.env
+backend/.env
+edge_agent/.env
+
+# 2. Virtual Environments
+venv/
+env/
+.venv/
+
+# 3. PyInstaller / Edge Agent Build Artifacts
+edge_agent/build/
+edge_agent/dist/
+edge_agent/*.spec
+*.exe
+
+# 4. Logs
+*.log
+edge_agent/sensor.log
+
+# 5. Python Cache & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 6. IDE & Agent Tooling
+.vscode/
+.claude/
+
+# 7. OS Generated Files
+.DS_Store
+Thumbs.db

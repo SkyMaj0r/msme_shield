@@ -1,0 +1,7 @@
+requests>=2.31
+psutil>=5.9
+wmi>=1.5
+pywin32>=306
+python-dotenv>=1.0
+pyinstaller>=6.0
+zxcvbn>=4.4
