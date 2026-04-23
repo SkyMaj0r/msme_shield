@@ -93,6 +93,7 @@ ENDPOINTS = {
     "latest":         f"{API_BASE}/api/scans/latest",
     "history":        f"{API_BASE}/api/scans/history",
     "governance":     f"{API_BASE}/api/scans/{{scan_id}}/governance",
+    "check_ssl":      f"{API_BASE}/api/check-ssl",
     "allowlist_post": f"{API_BASE}/api/organizations/{{org_id}}/allowlist",
     "register":       f"{API_BASE}/api/auth/register",
     "login":          f"{API_BASE}/api/auth/login",
@@ -107,10 +108,10 @@ RISK_CONFIG: dict[str, dict] = {
 
 PORT_RISK_WEIGHTS: dict[int, float] = {
     3389: 85.0, 23: 90.0, 21: 70.0, 22: 40.0,
-    445: 80.0, 1433: 75.0, 3306: 75.0, 5432: 70.0,
+    445: 80.0, 1433: 75.0, 3306: 15.0, 5432: 15.0,
     8080: 30.0, 8443: 15.0, 80: 10.0, 443: 5.0,
     25: 60.0, 110: 55.0, 143: 55.0, 53: 35.0,
-    161: 65.0, 5900: 80.0, 6379: 75.0, 27017: 75.0,
+    161: 65.0, 5900: 80.0, 6379: 15.0, 27017: 15.0,
 }
 
 EPHEMERAL_THRESHOLD = 49151
@@ -153,6 +154,12 @@ PORT_SERVICE_NAMES: dict[int, str] = {
 }
 
 
+def _html(html: str) -> None:
+    """Render HTML via st.markdown, collapsing indented lines so markdown never sees a code block."""
+    clean = " ".join(line.strip() for line in html.splitlines() if line.strip())
+    st.markdown(clean, unsafe_allow_html=True)
+
+
 def inject_css() -> None:
     """Inject Apple Light design system CSS overrides into the Streamlit app."""
     st.markdown(
@@ -193,6 +200,7 @@ def inject_css() -> None:
             border: 1px solid rgba(0,0,0,0.16) !important;
             border-radius: 8px !important;
             color: #1d1d1f !important;
+            caret-color: #1d1d1f !important;
             font-size: 17px !important;
             letter-spacing: -0.374px !important;
             padding: 10px 14px !important;
@@ -275,6 +283,23 @@ def inject_css() -> None:
         /* ── Spinner ── */
         .stSpinner > div {
             border-top-color: #0071e3 !important;
+        }
+
+        /* ── Download button ── */
+        [data-testid="stDownloadButton"] > button {
+            background: #ffffff !important;
+            color: #0071e3 !important;
+            border: 1.5px solid #0071e3 !important;
+            border-radius: 8px !important;
+            font-size: 15px !important;
+            font-weight: 500 !important;
+            letter-spacing: -0.224px !important;
+            padding: 8px 20px !important;
+            transition: all 0.2s ease !important;
+        }
+        [data-testid="stDownloadButton"] > button:hover {
+            background: #0071e3 !important;
+            color: #ffffff !important;
         }
 
         /* ── Checkbox ── */
@@ -492,7 +517,7 @@ def format_timestamp(ts: str) -> str:
 
 def _card(content_html: str, extra_style: str = "") -> None:
     """Render a standard Apple-style white card with shadow."""
-    st.markdown(
+    _html(
         f"""
         <div style='
             background: #ffffff;
@@ -501,9 +526,8 @@ def _card(content_html: str, extra_style: str = "") -> None:
             padding: 24px;
             {extra_style}
         '>{content_html}</div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+        )
 
 
 def _badge(label: str, color: str, bg: str) -> str:
@@ -519,16 +543,15 @@ def _badge(label: str, color: str, bg: str) -> str:
 def _section_header(title: str, subtitle: str = "") -> None:
     """Render a section header with optional subtitle."""
     sub = f"<div style='font-size:13px;color:{TEXT_3};letter-spacing:-0.12px;margin-top:2px;'>{subtitle}</div>" if subtitle else ""
-    st.markdown(
+    _html(
         f"""
         <div style='margin-bottom:16px;'>
             <div style='font-size:20px;font-weight:600;color:{TEXT_1};
                         font-family:{FONT_DISPLAY};letter-spacing:-0.28px;'>{title}</div>
             {sub}
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+        )
 
 
 def _compute_gov_preview_score(answers: dict[str, bool], maturity: str) -> tuple[float, int, int]:
@@ -611,7 +634,7 @@ def show_auth_page() -> None:
     _, centre, _ = st.columns([1, 2, 1])
 
     with centre:
-        st.markdown(
+        _html(
             f"""
             <div style='
                 text-align: center;
@@ -632,9 +655,8 @@ def show_auth_page() -> None:
                     letter-spacing: -0.224px;
                 '>Cyber Risk Quantification Platform</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            """
+            )
 
         tab_login, tab_register = st.tabs(["Sign In", "Register"])
 
@@ -745,16 +767,15 @@ def render_navbar() -> None:
             or st.session_state.get("org_name")
             or "My Organisation"
         )
-        st.markdown(
+        _html(
             f"""
             <div style='display:flex; align-items:center; gap:14px; padding:14px 0;'>
                 <span class='msme-brand'>🛡️ MSME Shield</span>
                 <span style='color:rgba(0,0,0,0.18); font-size:20px; line-height:1;'>|</span>
                 <span class='org-inline-name'>🏢 {biz}</span>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            """
+            )
 
     with nav_right:
         n1, n2, n3, n4 = st.columns(4)
@@ -829,7 +850,7 @@ def _render_pillar_card(
 ) -> None:
     """Render a single pillar score card with progress bar."""
     pct = min(max(score_val, 0), 100)
-    st.markdown(
+    _html(
         f"""
         <div style='
             background: #ffffff;
@@ -886,7 +907,65 @@ def _render_pillar_card(
                 font-family:{FONT_TEXT};
             '>{subtitle}</div>
         </div>
-        """,
+        """
+        )
+
+
+def _render_cve_table(rows: list[dict]) -> None:
+    """Render CVE findings as a styled div-grid table matching the Network Exposure theme."""
+    col_style = "grid-template-columns:1fr 90px 130px 58px 72px"
+    headers   = ("Software", "Version", "CVE ID", "CVSS", "EPSS")
+
+    header_html = (
+        f"<div style='display:grid;{col_style};background:#ECEAE4;"
+        f"padding:8px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid rgba(0,0,0,0.06);'>"
+        + "".join(
+            f"<span style='font-size:11px;text-transform:uppercase;color:{TEXT_3};"
+            f"letter-spacing:0.5px;font-weight:600;'>{h}</span>"
+            for h in headers
+        )
+        + "</div>"
+    )
+
+    rows_html = ""
+    for i, r in enumerate(rows):
+        row_bg  = "#F5F4F0" if i % 2 == 0 else "#ECEAE4"
+        cvss    = r.get("CVSS", 0.0)
+        cve_id  = r.get("CVE ID", "")
+        version = r.get("Version", "")
+
+        if isinstance(cvss, float) and cvss >= 9.0:
+            cvss_badge = f"<span style='background:#fff5f5;color:{DANGER};font-size:11px;padding:2px 6px;border-radius:6px;font-weight:600;'>{cvss:.1f}</span>"
+        elif isinstance(cvss, float) and cvss >= 7.0:
+            cvss_badge = f"<span style='background:#fff8ec;color:{WARNING_COLOR};font-size:11px;padding:2px 6px;border-radius:6px;font-weight:600;'>{cvss:.1f}</span>"
+        elif isinstance(cvss, float) and cvss >= 4.0:
+            cvss_badge = f"<span style='background:#f0fff4;color:{SUCCESS};font-size:11px;padding:2px 6px;border-radius:6px;font-weight:600;'>{cvss:.1f}</span>"
+        elif isinstance(cvss, float) and cvss > 0:
+            cvss_badge = f"<span style='font-size:13px;color:{TEXT_3};'>{cvss:.1f}</span>"
+        else:
+            cvss_badge = f"<span style='font-size:12px;color:{TEXT_3};'>—</span>"
+
+        eol_tag = ""
+        if "⚠️ EOL" in version or "EOL" in version:
+            clean_ver = version.replace(" ⚠️ EOL", "").replace(" EOL", "")
+            eol_tag   = f"<span style='font-size:10px;color:{WARNING_COLOR};background:#fffbeb;padding:1px 5px;border-radius:4px;margin-left:4px;'>EOL</span>"
+        else:
+            clean_ver = version
+
+        rows_html += (
+            f"<div style='display:grid;{col_style};background:{row_bg};"
+            f"padding:10px 12px;border-top:1px solid rgba(0,0,0,0.04);'>"
+            f"<span style='font-weight:500;color:{TEXT_1};font-size:13px;'>{r.get('Software','')}</span>"
+            f"<span style='color:{TEXT_2};font-size:13px;'>{clean_ver}{eol_tag}</span>"
+            f"<span style='font-size:12px;color:{TEXT_2};font-family:monospace;'>{cve_id}</span>"
+            f"<span>{cvss_badge}</span>"
+            f"<span style='font-size:12px;color:{TEXT_3};'>{r.get('EPSS','—')}</span>"
+            f"</div>"
+        )
+
+    st.markdown(
+        f"<div style='border-radius:12px;overflow:hidden;box-shadow:{SHADOW};'>"
+        f"{header_html}{rows_html}</div>",
         unsafe_allow_html=True,
     )
 
@@ -903,6 +982,18 @@ def _render_port_table(ports: list[dict], allowlisted_ports: list[dict]) -> None
         )
         return
 
+    col_style = "grid-template-columns:100px 1fr 130px 70px"
+    header_html = (
+        f"<div style='display:grid;{col_style};background:#ECEAE4;"
+        f"padding:8px 12px;border-radius:12px 12px 0 0;border-bottom:1px solid rgba(0,0,0,0.06);'>"
+        + "".join(
+            f"<span style='font-size:11px;text-transform:uppercase;color:{TEXT_3};"
+            f"letter-spacing:0.5px;font-weight:600;'>{h}</span>"
+            for h in ("Port", "Service", "Risk", "Weight")
+        )
+        + "</div>"
+    )
+
     rows_html = ""
     for i, p in enumerate(filtered):
         port_num = p.get("port", 0)
@@ -912,45 +1003,27 @@ def _render_port_table(ports: list[dict], allowlisted_ports: list[dict]) -> None
         row_bg   = "#F5F4F0" if i % 2 == 0 else "#ECEAE4"
 
         if is_allow:
-            badge = f"<span style='background:#f0fff4;color:{SUCCESS};font-size:11px;padding:2px 8px;border-radius:980px;'>✓ Allowlisted</span>"
+            badge = f"<span style='background:#f0fff4;color:{SUCCESS};font-size:11px;padding:2px 8px;border-radius:980px;'>&#10003; Allowlisted</span>"
         elif weight >= 70:
-            badge = f"<span style='background:#fff5f5;color:{DANGER};font-size:11px;padding:2px 8px;border-radius:980px;'>🚨 Critical</span>"
+            badge = f"<span style='background:#fff5f5;color:{DANGER};font-size:11px;padding:2px 8px;border-radius:980px;'>Critical</span>"
         elif weight >= 40:
-            badge = f"<span style='background:#fffbeb;color:{WARNING_COLOR};font-size:11px;padding:2px 8px;border-radius:980px;'>⚠️ Medium</span>"
+            badge = f"<span style='background:#fffbeb;color:{WARNING_COLOR};font-size:11px;padding:2px 8px;border-radius:980px;'>Medium</span>"
         else:
             badge = f"<span style='background:#f5f5f7;color:{TEXT_3};font-size:11px;padding:2px 8px;border-radius:980px;'>Low</span>"
 
-        rows_html += f"""
-        <tr style='background:{row_bg};'>
-            <td style='padding:10px 12px;font-weight:600;color:{TEXT_1};font-size:14px;letter-spacing:-0.224px;'>{port_num}</td>
-            <td style='padding:10px 12px;color:{TEXT_2};font-size:14px;'>{service}</td>
-            <td style='padding:10px 12px;'>{badge}</td>
-            <td style='padding:10px 12px;font-size:14px;color:{TEXT_3};'>{weight:.0f}</td>
-        </tr>
-        """
+        rows_html += (
+            f"<div style='display:grid;{col_style};background:{row_bg};"
+            f"padding:10px 12px;border-top:1px solid rgba(0,0,0,0.04);'>"
+            f"<span style='font-weight:600;color:{TEXT_1};font-size:14px;letter-spacing:-0.224px;'>{port_num}</span>"
+            f"<span style='color:{TEXT_2};font-size:14px;'>{service}</span>"
+            f"<span>{badge}</span>"
+            f"<span style='font-size:14px;color:{TEXT_3};'>{weight:.0f}</span>"
+            f"</div>"
+        )
 
     st.markdown(
-        f"""
-        <div style='border-radius:12px;overflow:hidden;box-shadow:{SHADOW};'>
-            <table style='width:100%;border-collapse:collapse;background:#F5F4F0;'>
-                <thead>
-                    <tr style='background:#ECEAE4;'>
-                        <th style='padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;
-                                   color:{TEXT_3};letter-spacing:0.5px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.06);'>Port</th>
-                        <th style='padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;
-                                   color:{TEXT_3};letter-spacing:0.5px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.06);'>Service</th>
-                        <th style='padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;
-                                   color:{TEXT_3};letter-spacing:0.5px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.06);'>Risk</th>
-                        <th style='padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;
-                                   color:{TEXT_3};letter-spacing:0.5px;font-weight:600;border-bottom:1px solid rgba(0,0,0,0.06);'>Weight</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-                </tbody>
-            </table>
-        </div>
-        """,
+        f"<div style='border-radius:12px;overflow:hidden;box-shadow:{SHADOW};'>"
+        f"{header_html}{rows_html}</div>",
         unsafe_allow_html=True,
     )
 
@@ -964,7 +1037,7 @@ def page_overview() -> None:
         st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
         _, col, _ = st.columns([1, 2, 1])
         with col:
-            st.markdown(
+            _html(
                 f"""
                 <div style='
                     background:#ffffff;
@@ -1011,9 +1084,8 @@ def page_overview() -> None:
                         </div>
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+                )
         return
 
     status    = scan.get("status", "pending_governance")
@@ -1032,7 +1104,7 @@ def page_overview() -> None:
 
         with hero_left:
             # Risk band pill
-            st.markdown(
+            _html(
                 f"""
                 <div style='margin-bottom:16px;'>
                     {_badge(f"{band_cfg['emoji']}  {band_cfg['label']}", band_color, band_cfg['bg'])}
@@ -1052,9 +1124,8 @@ def page_overview() -> None:
                     margin-top:4px;
                     font-family:{FONT_TEXT};
                 '>/ 100 — {score_label}</div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+                )
 
             if is_pending:
                 st.info(
@@ -1210,28 +1281,7 @@ def page_overview() -> None:
                 })
 
         if rows:
-            df = pd.DataFrame(rows[:60])
-
-            def _cvss_bg(val: float) -> str:
-                if val >= 9.0:
-                    return "background-color:#fff5f5;color:#ff3b30"
-                if val >= 7.0:
-                    return "background-color:#fffbeb;color:#ff9f0a"
-                if val >= 4.0:
-                    return "background-color:#f0fff4;color:#34c759"
-                return ""
-
-            styled = df.style.map(
-                lambda v: _cvss_bg(v) if isinstance(v, float) else "",
-                subset=["CVSS"],
-            ).format({"CVSS": "{:.1f}"})
-
-            st.dataframe(
-                styled,
-                use_container_width=True,
-                height=min(420, max(100, len(rows) * 35 + 38)),
-                hide_index=True,
-            )
+            _render_cve_table(rows[:60])
         else:
             st.markdown(
                 f"<div style='color:{TEXT_3};font-size:14px;padding:12px 0;letterSpacing:-0.224px;'>No vulnerabilities found.</div>",
@@ -1283,7 +1333,7 @@ def page_overview() -> None:
                 for p in unknown:
                     port_num = p.get("port", 0)
                     with st.container():
-                        st.markdown(
+                        _html(
                             f"""
                             <div style='
                                 background:#ffffff;
@@ -1300,9 +1350,8 @@ def page_overview() -> None:
                                     Not in known risk registry. Is this intentional?
                                 </div>
                             </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                            """
+                            )
                         desc_col, btn_col = st.columns([3, 1])
                         with desc_col:
                             desc = st.text_input(
@@ -1343,33 +1392,34 @@ def page_overview() -> None:
     _section_header("🔐 Active Probing Results")
     probe_left, probe_right = st.columns(2)
 
-    ssl_days       = scan.get("ssl_days", 45) or 45
+    _ssl_check     = st.session_state.get("ssl_check_result")
+    ssl_days       = (_ssl_check.get("ssl_days") if _ssl_check else None) or scan.get("ssl_days") or None
     password_score = scan.get("password_score", 0) or 0
     any_eol        = scan.get("any_eol", False)
 
     with probe_left:
-        ssl_color = SUCCESS if ssl_days >= 30 else (WARNING_COLOR if ssl_days >= 14 else DANGER)
-        ssl_label = "Valid" if ssl_days >= 30 else ("Expiring Soon" if ssl_days >= 14 else "Critical")
-        st.markdown(
-            f"""
-            <div style='
-                background:#ffffff;
-                border-radius:12px;
-                box-shadow:{SHADOW};
-                padding:24px;
-            '>
-                <div style='font-size:13px;color:{TEXT_3};text-transform:uppercase;
-                            letter-spacing:0.5px;margin-bottom:8px;'>SSL Certificate</div>
-                <div style='font-size:36px;font-weight:600;color:{ssl_color};
-                            letter-spacing:-0.28px;font-family:{FONT_DISPLAY};'>{ssl_days} days</div>
-                <div style='font-size:14px;color:{TEXT_3};margin-top:4px;letter-spacing:-0.224px;'>
-                    {ssl_label} · Checked via socket handshake
-                </div>
-                {"<div style='margin-top:12px;font-size:13px;color:" + DANGER + ";'>⚠️ EOL software detected in inventory</div>" if any_eol else ""}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if ssl_days is not None:
+            ssl_color  = SUCCESS if ssl_days >= 30 else (WARNING_COLOR if ssl_days >= 14 else DANGER)
+            ssl_label  = "Valid" if ssl_days >= 30 else ("Expiring Soon" if ssl_days >= 14 else "Critical")
+            ssl_domain = (_ssl_check or {}).get("domain", "")
+            ssl_sub    = f"{ssl_label} · {ssl_domain}" if ssl_domain else ssl_label
+            st.markdown(
+                f"<div style='background:#ffffff;border-radius:12px;box-shadow:{SHADOW};padding:24px;'>"
+                f"<div style='font-size:13px;color:{TEXT_3};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>SSL Certificate</div>"
+                f"<div style='font-size:36px;font-weight:600;color:{ssl_color};letter-spacing:-0.28px;font-family:{FONT_DISPLAY};'>{ssl_days} days</div>"
+                f"<div style='font-size:14px;color:{TEXT_3};margin-top:4px;letter-spacing:-0.224px;'>{ssl_sub}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<div style='background:#ffffff;border-radius:12px;box-shadow:{SHADOW};padding:24px;'>"
+                f"<div style='font-size:13px;color:{TEXT_3};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;'>SSL Certificate</div>"
+                f"<div style='font-size:15px;color:{TEXT_3};margin-top:8px;'>Not checked yet</div>"
+                f"<div style='font-size:13px;color:{TEXT_3};margin-top:6px;'>Enter your domain in the Governance tab to check SSL expiry.</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
     with probe_right:
         pw_dots   = "●" * password_score + "○" * (4 - password_score)
@@ -1378,7 +1428,7 @@ def page_overview() -> None:
         pw_label  = pw_labels[min(password_score, 4)]
         pw_color  = pw_colors[min(password_score, 4)]
 
-        st.markdown(
+        _html(
             f"""
             <div style='
                 background:#ffffff;
@@ -1396,7 +1446,33 @@ def page_overview() -> None:
                     Assessed via zxcvbn · Not stored anywhere
                 </div>
             </div>
-            """,
+            """
+            )
+
+    # ── EOL Software card (shown when any_eol is true) ───────────────────
+    eol_items = [f for f in cve_findings if f.get("is_eol")]
+    if eol_items:
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        eol_rows_html = "".join(
+            f"<div style='display:flex;align-items:center;padding:8px 0;"
+            f"border-bottom:1px solid rgba(0,0,0,0.06);gap:12px;'>"
+            f"<span style='font-size:13px;font-weight:500;color:{TEXT_1};flex:1;'>"
+            f"{f.get('software_name','Unknown')}</span>"
+            f"<span style='font-size:12px;color:{TEXT_3};'>{f.get('version','')}</span>"
+            f"<span style='font-size:11px;color:{WARNING_COLOR};background:#fffbeb;"
+            f"padding:2px 8px;border-radius:6px;'>EOL</span>"
+            f"</div>"
+            for f in eol_items
+        )
+        st.markdown(
+            f"<div style='background:#ffffff;border-radius:12px;box-shadow:{SHADOW};"
+            f"padding:20px 24px;border-left:4px solid {WARNING_COLOR};'>"
+            f"<div style='font-size:13px;color:{TEXT_3};text-transform:uppercase;"
+            f"letter-spacing:0.5px;margin-bottom:12px;'>End-of-Life Software ({len(eol_items)} items)</div>"
+            f"{eol_rows_html}"
+            f"<div style='font-size:12px;color:{TEXT_3};margin-top:10px;'>"
+            f"EOL software no longer receives security patches — update or replace these items.</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -1424,7 +1500,7 @@ def page_history() -> None:
         st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
         _, col, _ = st.columns([1, 2, 1])
         with col:
-            st.markdown(
+            _html(
                 f"""
                 <div style='
                     background:#ffffff;
@@ -1441,9 +1517,8 @@ def page_history() -> None:
                         Complete at least 2 scans to see your risk trend.
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+                )
         return
 
     # ── Date filter ──────────────────────────────────────────────────────
@@ -1715,7 +1790,7 @@ def page_history() -> None:
             </tr>
             """
 
-        st.markdown(
+        _html(
             f"""
             <div style='border-radius:12px;overflow:hidden;box-shadow:{SHADOW};'>
                 <table style='width:100%;border-collapse:collapse;background:#ffffff;'>
@@ -1732,9 +1807,8 @@ def page_history() -> None:
                     </tbody>
                 </table>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            """
+            )
 
 
 # ===========================================================================
@@ -1782,7 +1856,7 @@ def _render_compliance_table(scan: dict) -> None:
         </tr>
         """
 
-    st.markdown(
+    _html(
         f"""
         <div style='border-radius:12px;overflow:hidden;box-shadow:{SHADOW};margin-bottom:24px;'>
             <table style='width:100%;border-collapse:collapse;background:#ffffff;'>
@@ -1799,9 +1873,8 @@ def _render_compliance_table(scan: dict) -> None:
                 </tbody>
             </table>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+        )
 
 
 def _render_remediation_priorities(scan: dict) -> None:
@@ -1822,7 +1895,7 @@ def _render_remediation_priorities(scan: dict) -> None:
             f"padding:1px 6px;border-radius:980px;margin-left:8px;'>Statutory</span>"
             if item.get("statutory") else ""
         )
-        st.markdown(
+        _html(
             f"""
             <div style='
                 background:#ffffff;
@@ -1843,9 +1916,8 @@ def _render_remediation_priorities(scan: dict) -> None:
                     {item.get("citation","")}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            """
+            )
 
 
 def _render_gov_control(key: str, tier_label: str = "") -> None:
@@ -1863,27 +1935,17 @@ def _render_gov_control(key: str, tier_label: str = "") -> None:
         if meta.get("statutory") else ""
     )
 
+    citation = meta.get("citation", "")
+    label    = meta.get("label", key)
     st.markdown(
-        f"""
-        <div style='
-            background:{card_bg};
-            border-radius:12px;
-            padding:16px 20px;
-            margin-bottom:4px;
-            box-shadow:{SHADOW};
-            border-left:4px solid {border_left};
-        '>
-            <div style='display:flex;justify-content:space-between;align-items:flex-start;'>
-                <div>
-                    <span style='font-size:15px;font-weight:600;color:{TEXT_1};letter-spacing:-0.224px;'>{meta.get("label", key)}</span>
-                    {stat_span}
-                    <div style='font-size:13px;color:rgba(0,0,0,0.70);letter-spacing:-0.12px;margin-top:4px;'>
-                        {meta.get("citation","")}
-                    </div>
-                </div>
-            </div>
-        </div>
-        """,
+        f"<div style='background:{card_bg};border-radius:12px;padding:16px 20px;"
+        f"margin-bottom:4px;box-shadow:{SHADOW};border-left:4px solid {border_left};'>"
+        f"<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
+        f"<div>"
+        f"<span style='font-size:15px;font-weight:600;color:{TEXT_1};letter-spacing:-0.224px;'>{label}</span>"
+        f"{stat_span}"
+        f"<div style='font-size:13px;color:rgba(0,0,0,0.70);letter-spacing:-0.12px;margin-top:4px;'>{citation}</div>"
+        f"</div></div></div>",
         unsafe_allow_html=True,
     )
 
@@ -1920,22 +1982,16 @@ def _render_gov_control(key: str, tier_label: str = "") -> None:
         st.rerun()
 
     with st.expander("📖 Why this matters"):
+        remediation = meta.get("remediation", "No guidance available.")
         st.markdown(
-            f"""
-            <div style='
-                font-size:13px;
-                color:{TEXT_2};
-                letter-spacing:-0.12px;
-                line-height:1.5;
-            '>{meta.get("remediation","No guidance available.")}</div>
-            """,
+            f"<div style='font-size:13px;color:{TEXT_2};letter-spacing:-0.12px;line-height:1.5;'>{remediation}</div>",
             unsafe_allow_html=True,
         )
 
 
 def _render_lock_card(msg: str) -> None:
     """Render a locked tier card for controls not yet available at this maturity level."""
-    st.markdown(
+    _html(
         f"""
         <div style='
             background:#fafafc;
@@ -1948,9 +2004,8 @@ def _render_lock_card(msg: str) -> None:
             <div style='font-size:20px;margin-bottom:6px;'>🔒</div>
             <div style='font-size:14px;color:{TEXT_3};letter-spacing:-0.224px;'>{msg}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+        )
 
 
 
@@ -1977,7 +2032,7 @@ def page_governance() -> None:
         gov_score = scan.get("governance_score", 0.0) or 0.0
         g_color   = get_risk_color(gov_score)
 
-        st.markdown(
+        _html(
             f"""
             <div style='margin-bottom:24px;'>
                 <div style='font-size:28px;font-weight:600;color:{TEXT_1};
@@ -1988,14 +2043,13 @@ def page_governance() -> None:
                     Submitted for Scan #{scan_id}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            """
+            )
 
         # Governance score display
         col_score, col_action = st.columns([3, 1])
         with col_score:
-            st.markdown(
+            _html(
                 f"""
                 <div style='
                     background:#ffffff;
@@ -2010,9 +2064,8 @@ def page_governance() -> None:
                     <div style='font-size:52px;font-weight:700;color:{g_color};
                                 letter-spacing:-0.28px;font-family:{FONT_DISPLAY};'>{gov_score:.1f}</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+                )
         with col_action:
             st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
             if st.button("🔄 Re-assess", type="secondary", use_container_width=True):
@@ -2039,7 +2092,7 @@ def page_governance() -> None:
     ts_str     = format_timestamp(scan.get("timestamp", ""))
     tech_score = scan.get("tech_score", 0.0) or 0.0
 
-    st.markdown(
+    _html(
         f"""
         <div style='
             background:{BLUE_LIGHT};
@@ -2056,9 +2109,8 @@ def page_governance() -> None:
                 Scan #{scan_id} · {ts_str} · Tech Score: {tech_score:.1f}
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+        )
 
     # ── Admin password section ────────────────────────────────────────────
     st.markdown(
@@ -2078,14 +2130,64 @@ def page_governance() -> None:
         p_labels = ["Very Weak", "Weak", "Fair", "Strong", "Very Strong"]
         p_colors = [DANGER, DANGER, WARNING_COLOR, SUCCESS, SUCCESS]
         p_dots   = "●" * (p_score + 1) + "○" * (3 - p_score)
-        st.markdown(
+        _html(
             f"""
             <div style='font-size:14px;color:{p_colors[p_score]};
                         letter-spacing:-0.224px;margin-top:6px;
                         margin-bottom:4px;'>
                 {p_dots} {p_labels[p_score]}
             </div>
-            """,
+            """
+            )
+
+    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+    # ── Website SSL checker ───────────────────────────────────────────────
+    st.markdown(
+        f"<div style='font-size:20px;font-weight:600;color:{TEXT_1};"
+        f"letter-spacing:-0.28px;margin-bottom:12px;'>🌐 Website SSL Certificate</div>",
+        unsafe_allow_html=True,
+    )
+    ssl_col_input, ssl_col_btn = st.columns([3, 1])
+    with ssl_col_input:
+        ssl_domain = st.text_input(
+            "Website Domain",
+            placeholder="example.com",
+            help="Enter your apex domain — no https:// needed",
+            key="gov_ssl_domain",
+        )
+    with ssl_col_btn:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        check_clicked = st.button("Check SSL", key="gov_ssl_check_btn", use_container_width=True)
+
+    if check_clicked and ssl_domain:
+        with st.spinner("Checking SSL certificate…"):
+            try:
+                resp = requests.get(
+                    ENDPOINTS["check_ssl"],
+                    params={"domain": ssl_domain},
+                    timeout=12,
+                )
+                resp.raise_for_status()
+                st.session_state["ssl_check_result"] = resp.json()
+            except Exception as exc:
+                st.error(f"SSL check failed: {exc}")
+
+    ssl_result = st.session_state.get("ssl_check_result")
+    if ssl_result:
+        s_days  = ssl_result.get("ssl_days", 45)
+        s_dom   = ssl_result.get("domain", "")
+        s_color = SUCCESS if s_days >= 30 else (WARNING_COLOR if s_days >= 14 else DANGER)
+        s_label = "Valid" if s_days >= 30 else ("Expiring Soon" if s_days >= 14 else "Critical — Expired or near-expiry")
+        st.markdown(
+            f"<div style='background:#ffffff;border-radius:12px;box-shadow:{SHADOW};"
+            f"padding:20px 24px;margin-top:12px;border-left:4px solid {s_color};'>"
+            f"<div style='font-size:13px;color:{TEXT_3};text-transform:uppercase;"
+            f"letter-spacing:0.5px;margin-bottom:6px;'>SSL Certificate · {s_dom}</div>"
+            f"<div style='font-size:36px;font-weight:600;color:{s_color};"
+            f"letter-spacing:-0.28px;'>{s_days} days</div>"
+            f"<div style='font-size:14px;color:{TEXT_3};margin-top:4px;'>{s_label}</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -2113,7 +2215,7 @@ def page_governance() -> None:
             border_c  = BLUE if selected else "rgba(0,0,0,0.16)"
             bg_c      = BLUE_LIGHT if selected else "#ffffff"
             fw        = "600" if selected else "400"
-            st.markdown(
+            _html(
                 f"""
                 <div style='
                     border: 2px solid {border_c};
@@ -2138,9 +2240,8 @@ def page_governance() -> None:
                         letter-spacing:-0.12px;
                     '>{desc}</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+                )
             if st.button(
                 f"{'✓ Selected' if selected else 'Select'}",
                 key=f"mat_{key}",

@@ -277,6 +277,22 @@ def _build_full_scan_response(
 # ===========================================================================
 
 @app.get(
+    "/api/check-ssl",
+    tags=["Utility"],
+    summary="Check SSL certificate expiry for a domain",
+)
+def check_ssl_endpoint(domain: str) -> dict:
+    """Return days remaining on the SSL certificate for *domain*."""
+    clean = domain.strip().lower()
+    for prefix in ("https://", "http://"):
+        if clean.startswith(prefix):
+            clean = clean[len(prefix):]
+    clean = clean.split("/")[0]
+    days = check_ssl(clean)
+    return {"ssl_days": days, "domain": clean}
+
+
+@app.get(
     "/health",
     tags=["Utility"],
     summary="Liveness probe",

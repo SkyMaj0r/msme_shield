@@ -345,8 +345,10 @@ PORT_RISK_WEIGHTS: dict[int, float] = {
     22:   40.0,   # SSH  — encrypted but brute-forced; risk depends on config
     445:  80.0,   # SMB  — WannaCry / NotPetya entry vector
     1433: 75.0,   # MSSQL — direct DB exposure
-    3306: 75.0,   # MySQL — direct DB exposure
-    5432: 70.0,   # PostgreSQL — direct DB exposure
+    3306: 15.0,   # MySQL — expected internal service for MSMEs
+    5432: 15.0,   # PostgreSQL — expected internal service for MSMEs
+    27017: 15.0,  # MongoDB — expected internal service for MSMEs
+    6379: 15.0,   # Redis — expected internal service for MSMEs
     8080: 30.0,   # HTTP alt — often unencrypted dev servers left open
     8443: 15.0,   # HTTPS alt — lower risk but unexpected exposure
 }
