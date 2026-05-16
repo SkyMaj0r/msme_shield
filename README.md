@@ -526,7 +526,7 @@ By providing a low-cost, zero-friction tool that translates complex threat intel
 
 ## 📜 License
 
-This project is developed as an academic capstone at **SRM IST, Kattankulathur** for the 2025–26 academic year.
+This project is developed as an academic capstone (Minor Project) at **SRM IST, Kattankulathur** for the 2025–26 academic year.
 
 For commercial inquiries, partnership, or production deployment, please contact the team via the institution.
 
