@@ -540,6 +540,4 @@ For commercial inquiries, partnership, or production deployment, please contact 
 
 —
 
-[Report a Bug](https://github.com/<your-org>/msme-shield/issues) · [Request a Feature](https://github.com/<your-org>/msme-shield/issues) · [Documentation](./docs/)
-
 </div>
